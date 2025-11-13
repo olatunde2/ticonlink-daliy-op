@@ -65,11 +65,48 @@ def fetch_and_process_data(symbol, period, interval):
                 print("Loading from market_data.json (fallback)")
                 with open(static_file, 'r') as f:
                     data = json.load(f)
-                    if 'bars' in data and len(data['bars']) > 0:
+                    
+                    if isinstance(data, dict) and 'bars' not in data:
+                        print(f"Converting {len(data)} bars from dictionary format")
+                        bars_list = []
+                        for date_str, bar_data in data.items():
+                            if isinstance(bar_data, dict):
+                                panels = bar_data.get('Panels', {})
+                                panel_q = panels.get('Panel ?', {})
+                                panel_2 = panels.get('Panel 2', {})
+                                panel_3 = panels.get('Panel 3', {})
+                                panel_5 = panels.get('Panel 5', {})
+                                
+                                bars_list.append({
+                                    'time': bar_data.get('Date', date_str),
+                                    'Open': bar_data.get('Open'),
+                                    'High': bar_data.get('High'),
+                                    'Low': bar_data.get('Low'),
+                                    'Close': bar_data.get('Close'),
+                                    'Volume': bar_data.get('Volume'),
+                                    'Instrument': bar_data.get('Instrument'),
+                                    'SMA_20': panel_q.get('SMA'),
+                                    'BB_upper': panel_q.get('Upper band'),
+                                    'BB_middle': panel_q.get('Trigger'),
+                                    'BB_middle_avg': panel_q.get('Trigger Average'),
+                                    'BB_lower': panel_q.get('Lower band'),
+                                    'DC_upper': panel_q.get('Upper'),
+                                    'DC_middle': panel_q.get('Mean'),
+                                    'DC_lower': panel_q.get('Lower'),
+                                    'Momentum_Histogram': panel_2.get('MomentumHistogram'),
+                                    'Squeeze_Dots': panel_2.get('SqueezeDots'),
+                                    'Momentum': panel_3.get('Momentum'),
+                                    'Squeeze': panel_3.get('Squeeze'),
+                                    'ATR': panel_5.get('ATR'),
+                                    'Range': panel_5.get('Range value')
+                                })
+                        df = pd.DataFrame(bars_list)
+                    elif 'bars' in data and len(data['bars']) > 0:
                         df = pd.DataFrame(data['bars'])
-                        if 'time' in df.columns:
-                            df['time'] = pd.to_datetime(df['time'])
-                            df.set_index('time', inplace=True)
+                    
+                    if df is not None and not df.empty and 'time' in df.columns:
+                        df['time'] = pd.to_datetime(df['time'])
+                        df.set_index('time', inplace=True)
                         print(f"Loaded {len(df)} bars from static data")
         
         # If file loading failed, try WebSocket as fallback

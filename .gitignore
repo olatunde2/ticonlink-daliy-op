@@ -44,6 +44,6 @@ Thumbs.db
 
 # Data files
 *.csv
-*.json
+
 data/ 
 uv.lock/

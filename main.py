@@ -5,17 +5,10 @@ from core.calculator_ui import create_calculator_panel
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
-# Expose Flask server for deployment (required by Gunicorn)
-server = app.server
-
-# Register NinjaTrader webhook routes
-from core.webhook import register_webhook_routes
-register_webhook_routes(server)
-
 # Import callbacks to register them with the app - MUST be after app initialization
 from core.callbacks import register_clientside_callbacks, register_python_callbacks
 
-app.index_string = '''
+app.index_string = """
 <!DOCTYPE html>
 <html>
     <head>
@@ -115,81 +108,118 @@ app.index_string = '''
         </footer>
     </body>
 </html>
-'''
+"""
 
-app.layout = html.Div([
-    html.Div([
-        html.Label("Symbol:", style={'color': '#ffffff', 'marginRight': '5px'}),
-        dcc.Input(
-            id="symbol-input",
-            value="QQQ",
-            type="text",
-            className="control-input",
-            readOnly=True,
-            placeholder="Auto-filled from NinjaTrader",
-            style={'width': '80px', 'marginRight': '10px', 'backgroundColor': '#2d2d2d', 'color': "#ffffff", 'cursor': 'not-allowed'}
-        ),
-
-        html.Label("Interval:", style={'color': 'white', 'marginRight': '5px'}),
-        dcc.Dropdown(
-            id='interval-dropdown',
-            options=[
-                {"label": "Daily", "value": "1d"},
-                {"label": "Weekly", "value": "1wk"},
+app.layout = html.Div(
+    [
+        html.Div(
+            [
+                html.Label("Symbol:", style={"color": "#ffffff", "marginRight": "5px"}),
+                dcc.Input(
+                    id="symbol-input",
+                    value="QQQ",
+                    type="text",
+                    className="control-input",
+                    readOnly=True,
+                    placeholder="Auto-filled from NinjaTrader",
+                    style={
+                        "width": "80px",
+                        "marginRight": "10px",
+                        "backgroundColor": "#2d2d2d",
+                        "color": "#ffffff",
+                        "cursor": "not-allowed",
+                    },
+                ),
+                html.Label("Interval:", style={"color": "white", "marginRight": "5px"}),
+                dcc.Dropdown(
+                    id="interval-dropdown",
+                    options=[
+                        {"label": "Daily", "value": "1d"},
+                        {"label": "Weekly", "value": "1wk"},
+                    ],
+                    value="1d",
+                    className="control-input",
+                    style={
+                        "width": "100px",
+                        "marginRight": "10px",
+                        "backgroundColor": "#ffffff",
+                        "color": "#404040",
+                    },
+                ),
+                html.Button("Update", id="update-btn", className="control-button"),
+                dcc.Interval(
+                    id="auto-update", interval=30000, n_intervals=0, max_intervals=-1
+                ),
             ],
-            value="1d",
-            className="control-input",
-            style={'width': '100px', 'marginRight': '10px', 'backgroundColor': '#ffffff', 'color': "#404040"},
+            className="controls-bar",
         ),
-
-        html.Button("Update", id="update-btn", className="control-button"),
-        dcc.Interval(id="auto-update", interval=30000, n_intervals=0, max_intervals=-1)
-    ], className="controls-bar"),
-
-    html.Div([
-        html.Div([
-            html.Div(id="data-box"),
-            html.Div(id="panel-2"),
-            html.Div(id="panel-3"),
-            html.Div(id="panel-4"),
-            html.Div(id="panel-5")
-        ], className="left-panel", style={'overflowY': 'auto'}),
-
-        html.Div([
-            html.Div([
-                html.Div(id="main-chart")
-            ], className="chart-container", style={'flex': '2'}),
-
-            html.Div([
-                html.Div([
-                    html.Div(id="momentum-chart", className="indicator-chart"),
-                    html.Div(id="squeeze-chart", className="indicator-chart"),
-                    html.Div(id="volume-chart", className="indicator-chart")
-                ], style={'display': 'flex', 'flexDirection': 'column', 'height': '100%'})
-            ], className="indicators-panel")
-        ], className="main-chart-area"),
-        
-        html.Div([
-            create_calculator_panel()
-        ], className="right-panel")
-    ], className="trading-container"),
-
-    dcc.Store(id="chart-data"),
-    dcc.Store(id="dataframe-store"),
-    dcc.Store(id="clicked-bar-index"),
-    dcc.Store(id="last-symbol-store")
-])
+        html.Div(
+            [
+                html.Div(
+                    [
+                        html.Div(id="data-box"),
+                        html.Div(id="panel-2"),
+                        html.Div(id="panel-3"),
+                        html.Div(id="panel-4"),
+                        html.Div(id="panel-5"),
+                    ],
+                    className="left-panel",
+                    style={"overflowY": "auto"},
+                ),
+                html.Div(
+                    [
+                        html.Div(
+                            [html.Div(id="main-chart")],
+                            className="chart-container",
+                            style={"flex": "2"},
+                        ),
+                        html.Div(
+                            [
+                                html.Div(
+                                    [
+                                        html.Div(
+                                            id="momentum-chart",
+                                            className="indicator-chart",
+                                        ),
+                                        html.Div(
+                                            id="squeeze-chart",
+                                            className="indicator-chart",
+                                        ),
+                                        html.Div(
+                                            id="volume-chart",
+                                            className="indicator-chart",
+                                        ),
+                                    ],
+                                    style={
+                                        "display": "flex",
+                                        "flexDirection": "column",
+                                        "height": "100%",
+                                    },
+                                )
+                            ],
+                            className="indicators-panel",
+                        ),
+                    ],
+                    className="main-chart-area",
+                ),
+                html.Div([create_calculator_panel()], className="right-panel"),
+            ],
+            className="trading-container",
+        ),
+        dcc.Store(id="chart-data"),
+        dcc.Store(id="dataframe-store"),
+        dcc.Store(id="clicked-bar-index"),
+        dcc.Store(id="last-symbol-store"),
+    ]
+)
 
 register_clientside_callbacks(app)
 register_python_callbacks(app)
 
 # Initialize database
 from core.db import init_database
+
 init_database()
 
-if __name__ == '__main__':
-    import os
-    
-    # Use PORT environment variable for Render, default to 5000 for local dev
-    port = int(os.environ.get('PORT', 5000))
-    app.run(debug=False, host='0.0.0.0', port=port)
+if __name__ == "__main__":
+    app.run(debug=False, host="0.0.0.0", port=5000)

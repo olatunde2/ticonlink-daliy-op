@@ -1,0 +1,15 @@
+[project]
+name = "dailyoptions-app"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "dash>=3.3.0",
+    "dash-bootstrap-components>=2.0.4",
+    "numpy>=2.3.4",
+    "pandas>=2.3.3",
+    "plotly>=6.4.0",
+    "websocket-client>=1.9.0",
+    "websockets>=15.0.1",
+]

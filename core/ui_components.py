@@ -291,7 +291,7 @@ def create_data_panels(df, symbol, bar_index=-1):
             styled_row(
                 "Range value", f"{latest.get('Range', 0):.2f}", label_color="#008B8B"
             ),
-            styled_row("ATR", f"{latest.get('ATR', 0):.1f}", label_color="#008B8B"),
+            styled_row("ATR", f"{latest.get('ATR', 0):.2f}", label_color="#008B8B"),
         ],
         style={
             "backgroundColor": "#fff",

@@ -1,5 +1,6 @@
 from dash import html
-from datetime import datetime
+
+import pandas as pd
 
 
 def styled_row(label, value, label_color="#cccccc", value_color="#ffffff"):
@@ -34,13 +35,30 @@ def styled_row(label, value, label_color="#cccccc", value_color="#ffffff"):
     )
 
 
-def format_volume(v):
-    """Format volume into M for readability"""
-    if v >= 1_000_000:
-        return f"{v / 1_000_000:.0f}M"
-    elif v >= 1_000:
-        return f"{v / 1_000:.0f}K"
-    return str(v)
+def format_volume_full(v):
+    """Format volume with commas for Panel 1 (45,891,110)"""
+    try:
+        volume_int = int(v)
+        return f"{volume_int:,}"
+    except (ValueError, TypeError):
+        return str(v)
+
+
+def format_volume_abbreviated(v):
+    """Format volume abbreviated for Panel 4 (45M) - FIXED"""
+    try:
+        volume_int = int(v)
+        if volume_int >= 1_000_000_000:
+            return f"{volume_int // 1_000_000_000}B"  # ✅ Uses floor division
+        elif volume_int >= 1_000_000:
+            return (
+                f"{volume_int // 1_000_000}M"  # ✅ Uses floor division - this gives 45M
+            )
+        elif volume_int >= 1_000:
+            return f"{volume_int // 1_000}K"  # ✅ Uses floor division
+        return str(volume_int)
+    except (ValueError, TypeError):
+        return str(v)
 
 
 def create_data_panels(df, symbol, bar_index=-1):
@@ -54,6 +72,15 @@ def create_data_panels(df, symbol, bar_index=-1):
 
     week_num = latest_date.isocalendar()[1]
     year = latest_date.year
+
+    # FIXED: Use correct Mean value and volume formatting
+    mean_value = latest.get("Mean", 0)
+    if pd.isna(mean_value):
+        mean_value = 0
+
+    # FIXED: Different volume formatting for Panel 1 and Panel 4
+    volume_panel1 = format_volume_full(latest["Volume"])  # "45,891,110"
+    volume_panel4 = format_volume_abbreviated(latest["Volume"])  # "45M"
 
     data_box = html.Div(
         [
@@ -127,10 +154,10 @@ def create_data_panels(df, symbol, bar_index=-1):
             styled_row("High", f"{latest['High']:.2f}"),
             styled_row("Low", f"{latest['Low']:.2f}"),
             styled_row("Close", f"{latest['Close']:.2f}"),
-            styled_row("Volume", format_volume(latest["Volume"])),
-            styled_row(
-                "Mean", f"{latest.get('DC_middle', 0):.2f}", label_color="#FF8C00"
-            ),
+            # FIXED: Use full volume format for Panel 1
+            styled_row("Volume", volume_panel1),
+            # FIXED: Use correct Mean value
+            styled_row("Mean", f"{mean_value:.2f}", label_color="#FF8C00"),
             styled_row(
                 "SMA",
                 f"{latest.get('SMA_20', 0):.2f}",
@@ -175,7 +202,7 @@ def create_data_panels(df, symbol, bar_index=-1):
             ),
             styled_row(
                 "Momentum...",
-                f"{latest.get('Momentum_Histogram', 0):.2f}",
+                f"{latest.get('Momentum_Histogram', 0):.3f}",
                 label_color="#008000",
             ),
             styled_row(
@@ -237,9 +264,8 @@ def create_data_panels(df, symbol, bar_index=-1):
                     "borderBottom": "1px solid #555",
                 },
             ),
-            styled_row(
-                "Volume", format_volume(latest["Volume"]), label_color="#8B0000"
-            ),
+            # FIXED: Use abbreviated volume format for Panel 4
+            styled_row("Volume", volume_panel4, label_color="#8B0000"),
         ],
         style={
             "backgroundColor": "#fff",
@@ -265,7 +291,7 @@ def create_data_panels(df, symbol, bar_index=-1):
             styled_row(
                 "Range value", f"{latest.get('Range', 0):.2f}", label_color="#008B8B"
             ),
-            styled_row("ATR", f"{latest.get('ATR', 0):.2f}", label_color="#008B8B"),
+            styled_row("ATR", f"{latest.get('ATR', 0):.1f}", label_color="#008B8B"),
         ],
         style={
             "backgroundColor": "#fff",

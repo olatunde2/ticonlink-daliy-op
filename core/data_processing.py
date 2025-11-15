@@ -1,201 +1,211 @@
+# data_processing.py with FIXED mean and volume
+
 import pandas as pd
 import json
 from .ib_client import IBClient
 
 
-def fetch_and_process_data(symbol, period, interval):
-    """Fetch stock data from WebSocket and prepare it for charting"""
-    print("Fetching and processing data")
-    if not symbol:
-        symbol = "QQQ"
+def format_value(value, decimals=3):
+    """Format numeric values to specified decimal places"""
+    if isinstance(value, (int, float)):
+        return round(float(value), decimals)
+    return value
 
-    # Mappings for IBKR
-    ib_period_map = {
-        "5d": "5 D",
-        "1mo": "1 M",
-        "3mo": "3 M",
-        "6mo": "6 M",
-        "1y": "1 Y",
-        "2y": "2 Y",
-        "5y": "5 Y",
-        "10y": "10 Y",
-    }
-    ib_interval_map = {
-        "1m": "1 min",
-        "5m": "5 mins",
-        "15m": "15 mins",
-        "30m": "30 mins",
-        "1h": "1 hour",
-        "4h": "4 hours",
-        "1d": "1 day",
-        "1wk": "1 week",
-    }
 
-    duration = ib_period_map.get(period)
-    bar_size = ib_interval_map.get(interval)
+def format_volume(volume_value):
+    """Format volume with commas for display and abbreviated format"""
+    try:
+        volume_int = int(volume_value)
 
-    if not duration or not bar_size:
-        return None, f"Invalid period/interval for IBKR: {period}/{interval}"
-    print("Period: ", period)
-    print("Interval: ", interval)
+        # Format with commas (45,891,110)
+        formatted_with_commas = f"{volume_int:,}"
+
+        # Format abbreviated (45M) - FIXED: floor division for no rounding
+        if volume_int >= 1_000_000_000:
+            formatted_abbreviated = f"{volume_int // 1_000_000_000}B"
+        elif volume_int >= 1_000_000:
+            formatted_abbreviated = f"{volume_int // 1_000_000}M"  # This will give 45M
+        elif volume_int >= 1_000:
+            formatted_abbreviated = f"{volume_int // 1_000}K"
+        else:
+            formatted_abbreviated = str(volume_int)
+
+        return formatted_with_commas, formatted_abbreviated
+    except (ValueError, TypeError):
+        return str(volume_value), str(volume_value)
+
+
+def fetch_and_process_data(symbol=None, period=None, interval=None):
+    """Fetch stock data from Render server and prepare it for charting"""
+    print("Fetching and processing data from Render server")
 
     try:
-        print("Start fetching data from WebSocket")
-        # Fetch data from WebSocket
+        print("Start fetching data from Render server")
+        # Fetch data from Render server
         ib_client = IBClient()
-        df = ib_client.get_historical_data(
-            ticker=symbol, duration=duration, bar_size=bar_size
-        )
-        print(df)
+        df = ib_client.get_historical_data()
+        print(f"Retrieved {len(df)} bars")
 
         if df.empty:
-            return None, "No data"
+            return None, "No data available from server"
 
-        # Rename columns to match existing convention
-        df.rename(
-            columns={
-                "open": "Open",
-                "high": "High",
-                "low": "Low",
-                "close": "Close",
-                "volume": "Volume",
-                "instrument": "Instrument",
-                "sma20": "SMA_20",
-                "bb_upper": "BB_upper",
-                "bb_middle": "BB_middle",  # Trigger
-                "bb_middle_avg": "BB_middle_avg",  # Trigger Average
-                "bb_lower": "BB_lower",
-                "dc_upper": "DC_upper",
-                "dc_middle": "DC_middle",
-                "dc_lower": "DC_lower",
-                "atr": "ATR",
-                "range": "Range",
-                "momentum": "Momentum",  # Panel 3 Momentum
-                "momentum_histogram": "Momentum_Histogram",  # Panel 2
-                "squeeze": "Squeeze",  # Panel 3 Squeeze
-                "squeeze_dots": "Squeeze_Dots",  # Panel 2
-                "uptrend": "UpTrend",
-                "downtrend": "DownTrend",
-            },
-            inplace=True,
-        )
+        # FIXED: Correct column mapping
+        column_mapping = {
+            "open": "Open",
+            "high": "High",
+            "low": "Low",
+            "close": "Close",
+            "volume": "Volume",
+            "instrument": "Instrument",
+            # FIXED: Map Panel_1_Mean to Mean
+            "Panel_1_Mean": "Mean",
+            # Map the panel indicators to standard names
+            "Panel_Unknown_SMA": "SMA_20",
+            "Panel_Unknown_Upper_band": "BB_upper",
+            "Panel_Unknown_Middle_band": "BB_middle",
+            "Panel_Unknown_Trigger": "BB_middle_avg",
+            "Panel_Unknown_Lower_band": "BB_lower",
+            "Panel_1_Upper": "DC_upper",
+            "Panel_1_Lower": "DC_lower",
+            "Panel_5_ATR": "ATR",
+            "Panel_5_Range_value": "Range",
+            "Panel_3_Momentum": "Momentum",
+            "Panel_2_MomentumHistogram": "Momentum_Histogram",
+            "Panel_3_Squeeze": "Squeeze",
+            "Panel_2_SqueezeDots": "Squeeze_Dots",
+            "Panel_Unknown_UpTrend": "UpTrend",
+            "Panel_Unknown_DownTrend": "DownTrend",
+        }
+
+        # Apply column mapping
+        df.rename(columns=column_mapping, inplace=True)
+
+        # Format numeric columns
+        numeric_columns = [
+            "SMA_20",
+            "BB_upper",
+            "BB_middle",
+            "BB_middle_avg",
+            "BB_lower",
+            "Mean",
+            "DC_upper",
+            "DC_lower",
+            "ATR",
+            "Range",
+            "Momentum",
+            "Momentum_Histogram",
+            "Squeeze",
+            "Squeeze_Dots",
+            "UpTrend",
+            "DownTrend",
+        ]
+
+        for col in numeric_columns:
+            if col in df.columns:
+                # Use 2 decimals for prices, 3 for indicators
+                decimals = 2 if col in ["Mean"] else 3
+                df[col] = df[col].apply(lambda x: format_value(x, decimals))
 
         # Make sure index is datetime
         df.index = pd.to_datetime(df.index)
 
-        # Initialize chart_data with all possible keys as empty lists
+        # Initialize chart_data
         chart_data = {
             "candlestick": [],
             "sma20": [],
-            "ema14": [],
-            "wma20": [],
-            "hma20": [],
-            "tma20": [],
-            "tema20": [],
-            "atr": [],
             "bb_upper": [],
             "bb_middle": [],
             "bb_lower": [],
-            "bb_bandwidth": [],
-            "bb_percent_b": [],
-            "stddev": [],
-            "dc_upper": [],
-            "dc_middle": [],
-            "dc_lower": [],
-            "kc_upper": [],
-            "kc_middle": [],
-            "kc_lower": [],
-            "rsi": [],
-            "cci": [],
-            "cmo": [],
-            "stoch_k": [],
-            "stoch_d": [],
-            "macd": [],
-            "macd_signal": [],
-            "macd_histogram": [],
-            "max_20": [],
-            "min_20": [],
-            "sum_volume": [],
-            "daily_range": [],
-            "avg_range": [],
-            "linreg": [],
-            "linreg_slope": [],
-            "linreg_r2": [],
-            "williams_r": [],
-            "ultimate_osc": [],
-            "roc": [],
-            "obv": [],
-            "volume_sma": [],
-            "vwap": [],
-            "ad_line": [],
-            "chaikin_mf": [],
+            "atr": [],
             "momentum": [],
             "squeeze": [],
             "volume": [],
+            "mean": [],
         }
 
         for timestamp, row in df.iterrows():
-            time_value = int(timestamp.timestamp())
+            time_value = int(timestamp.timestamp())  # type: ignore
 
-            # Candlestick data
+            # FIXED: Separate volume formatting for Panel 1 and Panel 4
+            volume_panel1 = row.get("Panel_1_Volume", row.get("Volume", 0))
+            volume_panel1_formatted, _ = format_volume(volume_panel1)  # "45,891,110"
+
+            volume_panel4 = row.get("Panel_4_Volume", row.get("Volume", 0))
+            _, volume_panel4_abbreviated = format_volume(volume_panel4)  # "45M"
+
+            # Candlestick data with Panel 1 volume format
             chart_data["candlestick"].append(
                 {
                     "time": time_value,
-                    "open": float(row["Open"]),
-                    "high": float(row["High"]),
-                    "low": float(row["Low"]),
-                    "close": float(row["Close"]),
+                    "open": round(float(row["Open"]), 2),
+                    "high": round(float(row["High"]), 2),
+                    "low": round(float(row["Low"]), 2),
+                    "close": round(float(row["Close"]), 2),
+                    # FIXED: Use Panel 1 formatted volume
+                    "volume_formatted": volume_panel1_formatted,  # "45,891,110"
                 }
             )
 
-            # Helper function to append if column exists and is not NaN
-            def add_indicator(key, col_name):
-                if col_name in df.columns and not pd.isna(row[col_name]):
+            # Helper function to append indicators
+            def add_indicator(key, col_name, decimals=3):
+                if col_name in df.columns and not pd.isna(row[col_name]):  # type: ignore
                     chart_data[key].append(
-                        {"time": time_value, "value": float(row[col_name])}
+                        {
+                            "time": time_value,
+                            "value": round(float(row[col_name]), decimals),  # type: ignore
+                        }
                     )
 
-            # Add all indicators from WebSocket
-            add_indicator("sma20", "SMA_20")
-            add_indicator("atr", "ATR")
-            add_indicator("bb_upper", "BB_upper")
-            add_indicator("bb_middle", "BB_middle")
-            add_indicator("bb_lower", "BB_lower")
-            add_indicator("dc_upper", "DC_upper")
-            add_indicator("dc_middle", "DC_middle")
-            add_indicator("dc_lower", "DC_lower")
+            # Add indicators
+            add_indicator("sma20", "SMA_20", 3)
+            add_indicator("atr", "ATR", 3)
+            add_indicator("bb_upper", "BB_upper", 3)
+            add_indicator("bb_middle", "BB_middle", 3)
+            add_indicator("bb_lower", "BB_lower", 3)
 
-            # Momentum with color (from websocket)
+            # FIXED: Mean should now work with correct column mapping
+            if "Mean" in df.columns and not pd.isna(row["Mean"]):
+                chart_data["mean"].append(
+                    {"time": time_value, "value": round(float(row["Mean"]), 2)}
+                )
+
+            # Momentum with color
             if "Momentum" in df.columns and not pd.isna(row["Momentum"]):
-                color = "#00ff88" if row["Momentum"] > 0 else "#ff4444"
+                momentum_value = round(float(row["Momentum"]), 3)
+                color = "#00ff88" if momentum_value > 0 else "#ff4444"
                 chart_data["momentum"].append(
                     {
                         "time": time_value,
-                        "value": float(row["Momentum"]),
+                        "value": momentum_value,
                         "color": color,
                     }
                 )
 
-            # Squeeze (from websocket - 0 = green, non-zero = red)
+            # Squeeze
             if "Squeeze" in df.columns and not pd.isna(row["Squeeze"]):
+                squeeze_value = round(float(row["Squeeze"]), 3)
                 val = (
-                    float(row["Momentum"])
+                    round(float(row["Momentum"]), 3)
                     if "Momentum" in df.columns and not pd.isna(row["Momentum"])
                     else 0
                 )
-                color = "#ff4444" if row["Squeeze"] != 0 else "#00ff88"
+                color = "#ff4444" if squeeze_value != 0 else "#00ff88"
                 chart_data["squeeze"].append(
                     {"time": time_value, "value": val, "color": color}
                 )
 
-            # Volume with color (up/down candles)
-            chart_data["volume"].append(
-                {
-                    "time": time_value,
-                    "value": float(row["Volume"]),
-                    "color": "#00ff88" if row["Close"] > row["Open"] else "#ff4444",
-                }
-            )
+            # Volume for Panel 4 with abbreviated format
+            if "Volume" in df.columns and not pd.isna(row["Volume"]):
+                color = "#00ff88" if row["Close"] > row["Open"] else "#ff4444"
+                chart_data["volume"].append(
+                    {
+                        "time": time_value,
+                        "value": int(row["Volume"]),
+                        "color": color,
+                        # FIXED: Use Panel 4 abbreviated volume
+                        "formatted": volume_panel4_abbreviated,  # "45M"
+                    }
+                )
 
         return df, json.dumps(chart_data)
 

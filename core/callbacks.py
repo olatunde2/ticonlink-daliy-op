@@ -1,9 +1,7 @@
 import dash
-from dash import dcc, html, Input, Output, State, callback, no_update
-import dash_bootstrap_components as dbc
+from dash import html, Input, Output, State, no_update
 import json
 import pandas as pd
-import numpy as np
 import logging
 from core.data_processing import fetch_and_process_data
 from core.ui_components import create_data_panels

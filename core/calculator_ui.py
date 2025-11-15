@@ -78,7 +78,11 @@ def create_calculator_panel():
                             {"label": "Short (Put)", "value": "short"},
                         ],
                         value="long",
-                        style={"marginBottom": "8px", "fontSize": "12px"},
+                        style={
+                            "marginBottom": "8px",
+                            "fontSize": "12px",
+                            "color": "#000000",
+                        },
                         clearable=False,
                     ),
                     html.Div("Open Price", style=label_style),

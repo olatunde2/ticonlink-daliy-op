@@ -76,7 +76,7 @@ app.index_string = """
             .control-input {
                 background-color: #404040;
                 border: 1px solid #606060;
-                color: white;
+                color: #000000;
                 padding: 4px 8px;
                 border-radius: 3px;
                 font-size: 12px;
@@ -130,7 +130,13 @@ app.layout = html.Div(
                         "cursor": "not-allowed",
                     },
                 ),
-                html.Label("Interval:", style={"color": "white", "marginRight": "5px"}),
+                html.Label(
+                    "Interval:",
+                    style={
+                        "color": "white",
+                        "marginRight": "5px",
+                    },
+                ),
                 dcc.Dropdown(
                     id="interval-dropdown",
                     options=[
